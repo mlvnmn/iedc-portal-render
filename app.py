@@ -1,13 +1,10 @@
 import os
+import cloudinary
+import cloudinary.uploader
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
-
-# This is the path where Render will mount your persistent disk.
-# We will save all uploaded images here.
-UPLOAD_FOLDER = '/var/data/uploads'
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
@@ -15,9 +12,16 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 
 # --- App Configuration ---
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') # This will be set on Render
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') # Render provides this automatically
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+
+# --- Cloudinary Configuration ---
+# This connects your app to your Cloudinary account using secrets from Render
+cloudinary.config(
+    cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key = os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret = os.environ.get('CLOUDINARY_API_SECRET')
+)
 
 # --- Connect Extensions to the App ---
 db.init_app(app)
@@ -40,7 +44,7 @@ class User(UserMixin, db.Model):
 
 class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    image_filename = db.Column(db.String(200), nullable=False)
+    image_filename = db.Column(db.Text, nullable=False) # Changed to Text for long Cloudinary URLs
     description = db.Column(db.Text, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     department = db.Column(db.String(100), nullable=False)
@@ -50,7 +54,7 @@ class Submission(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- Routes (Web Pages) ---
+# --- Main Routes (Web Pages) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -75,7 +79,6 @@ def logout():
 @login_required
 def student_dashboard():
     if current_user.role != 'student': return redirect(url_for('login'))
-
     if request.method == 'POST':
         if 'image' not in request.files or request.files['image'].filename == '':
             flash('No file selected')
@@ -83,14 +86,12 @@ def student_dashboard():
         
         file = request.files['image']
         if file:
-            filename = secure_filename(file.filename)
-            # Ensure the upload directory exists on the disk
-            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-            # Save the file to the persistent disk
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            # Upload the file to Cloudinary instead of saving locally
+            upload_result = cloudinary.uploader.upload(file)
+            image_url = upload_result['secure_url']
 
             new_submission = Submission(
-                image_filename=filename, # Save just the filename
+                image_filename=image_url, # Save the full URL from Cloudinary
                 description=request.form['description'],
                 user_id=current_user.id,
                 department=current_user.department
@@ -99,14 +100,7 @@ def student_dashboard():
             db.session.commit()
             flash('Image uploaded successfully! Awaiting review.')
             return redirect(url_for('student_dashboard'))
-
     return render_template('student.html')
-
-# This special route is needed to serve images from the persistent disk
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    from flask import send_from_directory
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/sub_admin_dashboard')
 @login_required
@@ -134,9 +128,10 @@ def approve_submission(submission_id):
         flash('Submission approved and forwarded to main admin.')
     return redirect(url_for('sub_admin_dashboard'))
 
-# --- Custom Command to Set Up Database ---
+# --- Custom Command to Set Up the Database ---
 @app.cli.command("init-db")
 def init_db_command():
+    """Creates tables and default users."""
     db.create_all()
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
