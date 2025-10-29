@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Main Admin Dashboard</h3>
+<p>Here are all the approved submissions from all departments.</p>
+<div class="row">
+    {% for submission in submissions %}
+    <div class="col-md-4">
+        <div class="card">
+            <img src="{{ url_for('uploaded_file', filename=submission.image_filename) }}" class="card-img-top" alt="Event Image">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Department: {{ submission.department }}</h6>
+                <p class="card-text">{{ submission.description }}</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col"><p>No approved submissions yet.</p></div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Sub-Admin Dashboard for {{ current_user.department }}</h3>
+<p>Review the pending submissions from students in your department.</p>
+<div class="row">
+    {% for submission in submissions %}
+    <div class="col-md-4">
+        <div class="card">
+            <img src="{{ url_for('uploaded_file', filename=submission.image_filename) }}" class="card-img-top" alt="Event Image">
+            <div class="card-body">
+                <p class="card-text">{{ submission.description }}</p>
+                <a href="{{ url_for('approve_submission', submission_id=submission.id) }}" class="btn btn-success">Approve</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col"><p>No pending submissions to review.</p></div>
+    {% endfor %}
+</div>
+{% endblock %}
