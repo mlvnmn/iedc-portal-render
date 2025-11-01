@@ -2,6 +2,9 @@
 {% block content %}
 <h3>Main Admin Dashboard</h3>
 <p>Here are all the approved submissions from all departments.</p>
+
+<a href="{{ url_for('export_data') }}" class="btn btn-primary mb-3">Export All Data to Excel</a>
+
 <div class="row">
     {% for submission in submissions %}
     <div class="col-md-4">
