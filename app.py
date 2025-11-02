@@ -140,11 +140,9 @@ def export_data():
 # --- Custom Command to Set Up the Database ---
 @app.cli.command("init-db")
 def init_db_command():
-    """DESTRUCTIVE: Clears all data and re-creates tables."""
+    """SAFE: Creates tables and default users."""
     
-    # --- THIS IS THE "CLEAR DATABASE" LINE ---
-    db.drop_all()
-    # --- END OF LINE ---
+    # --- The "db.drop_all()" line is now gone. ---
     
     db.create_all()
     if User.query.filter_by(username='admin').first() is None:
@@ -160,4 +158,4 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized and cleared.")
+    print("Database initialized.")
