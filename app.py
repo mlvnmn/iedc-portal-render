@@ -1,26 +1,17 @@
 import os
 import cloudinary
 import cloudinary.uploader
-# --- ADD THESE IMPORTS ---
 import io
 import pandas as pd
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file
-# --- END OF ADDITIONS ---
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-# --- ADD THIS IMPORT (if it's missing) ---
 from whitenoise import WhiteNoise
-# --- END OF ADDITION ---
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
-
-# --- ADD THIS LINE FOR WHITENOISE ---
-# This serves your static files (logo, background) in production
 app.wsgi_app = WhiteNoise(app.wsgi_app, root="static/")
-# --- END OF ADDITION ---
-
 db = SQLAlchemy()
 login_manager = LoginManager()
 
@@ -40,19 +31,15 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- Database Models ---
+# --- Database Models (All your class definitions go here) ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), nullable=False)
     department = db.Column(db.String(100))
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+    def set_password(self, password): self.password_hash = generate_password_hash(password)
+    def check_password(self, password): return check_password_hash(self.password_hash, password)
 
 class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -63,10 +50,9 @@ class Submission(db.Model):
     status = db.Column(db.String(20), default='pending')
 
 @login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+def load_user(user_id): return User.query.get(int(user_id))
 
-# --- Main Routes (Web Pages) ---
+# --- Main Routes (All your @app.route functions go here) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -85,41 +71,29 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- Dashboards ---
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/student_dashboard', methods=['GET', 'POST'])
 @login_required
 def student_dashboard():
     if current_user.role != 'student': return redirect(url_for('login'))
-    
     if request.method == 'POST':
         description = request.form['description']
         files = request.files.getlist('images')
-
         if not files or files[0].filename == '':
             flash('No files selected')
             return redirect(request.url)
-
         num_uploaded = 0
         for file in files:
             if file:
                 upload_result = cloudinary.uploader.upload(file)
                 image_url = upload_result['secure_url']
-                new_submission = Submission(
-                    image_filename=image_url,
-                    description=description,
-                    user_id=current_user.id,
-                    department=current_user.department
-                )
+                new_submission = Submission(image_filename=image_url, description=description, user_id=current_user.id, department=current_user.department)
                 db.session.add(new_submission)
                 num_uploaded += 1
-        
         db.session.commit()
         flash(f'Successfully uploaded {num_uploaded} images!')
         return redirect(url_for('student_dashboard'))
-
     return render_template('student.html')
-
 
 @app.route('/sub_admin_dashboard')
 @login_required
@@ -128,7 +102,6 @@ def sub_admin_dashboard():
     submissions = Submission.query.filter_by(department=current_user.department, status='pending').all()
     return render_template('sub_admin.html', submissions=submissions)
 
-
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
@@ -136,7 +109,6 @@ def admin_dashboard():
     submissions = Submission.query.filter_by(status='approved_by_sub').all()
     return render_template('admin.html', submissions=submissions)
 
-# --- Actions ---
 @app.route('/approve/<int:submission_id>')
 @login_required
 def approve_submission(submission_id):
@@ -148,43 +120,32 @@ def approve_submission(submission_id):
         flash('Submission approved and forwarded to main admin.')
     return redirect(url_for('sub_admin_dashboard'))
 
-# --- ADD THIS ENTIRE SECTION ---
-# --- Export Route ---
 @app.route('/export')
 @login_required
 def export_data():
     if current_user.role != 'admin':
         flash('You do not have permission to access this page.')
         return redirect(url_for('login'))
-
     try:
-        # Use Pandas to read data directly from the SQLAlchemy query
         df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
-        
-        # Create an in-memory Excel file
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Submissions', index=False)
-        
-        output.seek(0) # Rewind the file to the beginning
-
-        # Send the file to the user for download
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name='iedc_submissions.xlsx'
-        )
+        output.seek(0)
+        return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iedc_submissions.xlsx')
     except Exception as e:
         flash(f"An error occurred while exporting: {e}")
         return redirect(url_for('admin_dashboard'))
-# --- END OF NEW SECTION ---
-
 
 # --- Custom Command to Set Up the Database ---
 @app.cli.command("init-db")
 def init_db_command():
-    """Creates tables and default users."""
+    """DESTRUCTIVE: Clears all data and re-creates tables."""
+    
+    # --- THIS IS THE "CLEAR DATABASE" LINE ---
+    db.drop_all()
+    # --- END OF LINE ---
+    
     db.create_all()
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
@@ -199,4 +160,4 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized.")
+    print("Database initialized and cleared.")
