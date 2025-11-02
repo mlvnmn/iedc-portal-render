@@ -1,6 +1,9 @@
 import os
 import cloudinary
 import cloudinary.uploader
+# --- ADD THIS IMPORT ---
+from whitenoise import WhiteNoise
+# --- END OF ADDITION ---
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -8,6 +11,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
+
+# --- ADD THIS LINE ---
+# This line tells your app to use WhiteNoise to serve files from the 'static' folder
+app.wsgi_app = WhiteNoise(app.wsgi_app, root="static/")
+# --- END OF ADDITION ---
+
 db = SQLAlchemy()
 login_manager = LoginManager()
 
@@ -16,7 +25,6 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 
 # --- Cloudinary Configuration ---
-# This connects your app to your Cloudinary account using secrets from Render
 cloudinary.config(
     cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME'),
     api_key = os.environ.get('CLOUDINARY_API_KEY'),
@@ -44,7 +52,7 @@ class User(UserMixin, db.Model):
 
 class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    image_filename = db.Column(db.Text, nullable=False) # Changed to Text for long Cloudinary URLs
+    image_filename = db.Column(db.Text, nullable=False) 
     description = db.Column(db.Text, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     department = db.Column(db.String(100), nullable=False)
@@ -79,28 +87,35 @@ def logout():
 @login_required
 def student_dashboard():
     if current_user.role != 'student': return redirect(url_for('login'))
+    
     if request.method == 'POST':
-        if 'image' not in request.files or request.files['image'].filename == '':
-            flash('No file selected')
-            return redirect(request.url)
-        
-        file = request.files['image']
-        if file:
-            # Upload the file to Cloudinary instead of saving locally
-            upload_result = cloudinary.uploader.upload(file)
-            image_url = upload_result['secure_url']
+        description = request.form['description']
+        files = request.files.getlist('images')
 
-            new_submission = Submission(
-                image_filename=image_url, # Save the full URL from Cloudinary
-                description=request.form['description'],
-                user_id=current_user.id,
-                department=current_user.department
-            )
-            db.session.add(new_submission)
-            db.session.commit()
-            flash('Image uploaded successfully! Awaiting review.')
-            return redirect(url_for('student_dashboard'))
+        if not files or files[0].filename == '':
+            flash('No files selected')
+            return redirect(request.url)
+
+        num_uploaded = 0
+        for file in files:
+            if file:
+                upload_result = cloudinary.uploader.upload(file)
+                image_url = upload_result['secure_url']
+                new_submission = Submission(
+                    image_filename=image_url,
+                    description=description,
+                    user_id=current_user.id,
+                    department=current_user.department
+                )
+                db.session.add(new_submission)
+                num_uploaded += 1
+        
+        db.session.commit()
+        flash(f'Successfully uploaded {num_uploaded} images!')
+        return redirect(url_for('student_dashboard'))
+
     return render_template('student.html')
+
 
 @app.route('/sub_admin_dashboard')
 @login_required
@@ -108,6 +123,7 @@ def sub_admin_dashboard():
     if current_user.role != 'sub-admin': return redirect(url_for('login'))
     submissions = Submission.query.filter_by(department=current_user.department, status='pending').all()
     return render_template('sub_admin.html', submissions=submissions)
+
 
 @app.route('/admin_dashboard')
 @login_required
@@ -128,50 +144,6 @@ def approve_submission(submission_id):
         flash('Submission approved and forwarded to main admin.')
     return redirect(url_for('sub_admin_dashboard'))
 
-import io # Add this import at the top of your app.py file
-import pandas as pd # Add this import at the top as well
-from flask import send_file # Add send_file to your main flask import
-
-# ... (rest of your routes) ...
-
-# --- Export Route ---
-
-@app.route('/export')
-@login_required
-def export_data():
-    # 1. Security Check: Only allow the main admin to export
-    if current_user.role != 'admin':
-        flash('You do not have permission to access this page.')
-        return redirect(url_for('login'))
-
-    try:
-        # 2. Query your database for all submissions
-        # We can query the Submission model directly
-        query = Submission.query.all()
-        
-        # 3. Use Pandas to convert the database data to a DataFrame
-        # pd.read_sql needs the raw SQL statement and the connection
-        df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
-        
-        # 4. Create an in-memory Excel file
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Submissions', index=False)
-        
-        output.seek(0) # Go to the beginning of the in-memory file
-
-        # 5. Send the file to the user for download
-        return send_file(
-            output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            as_attachment=True,
-            download_name='iedc_submissions.xlsx'
-        )
-    except Exception as e:
-        flash(f"An error occurred while exporting: {e}")
-        return redirect(url_for('admin_dashboard'))
-
-# ... (Your init-db command) ...
 # --- Custom Command to Set Up the Database ---
 @app.cli.command("init-db")
 def init_db_command():
