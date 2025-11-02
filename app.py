@@ -1,19 +1,23 @@
 import os
 import cloudinary
 import cloudinary.uploader
-# --- ADD THIS IMPORT ---
-from whitenoise import WhiteNoise
-# --- END OF ADDITION ---
-from flask import Flask, render_template, request, redirect, url_for, flash
+# --- ADD THESE IMPORTS ---
+import io
+import pandas as pd
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file
+# --- END OF ADDITIONS ---
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+# --- ADD THIS IMPORT (if it's missing) ---
+from whitenoise import WhiteNoise
+# --- END OF ADDITION ---
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
 
-# --- ADD THIS LINE ---
-# This line tells your app to use WhiteNoise to serve files from the 'static' folder
+# --- ADD THIS LINE FOR WHITENOISE ---
+# This serves your static files (logo, background) in production
 app.wsgi_app = WhiteNoise(app.wsgi_app, root="static/")
 # --- END OF ADDITION ---
 
@@ -143,6 +147,39 @@ def approve_submission(submission_id):
         db.session.commit()
         flash('Submission approved and forwarded to main admin.')
     return redirect(url_for('sub_admin_dashboard'))
+
+# --- ADD THIS ENTIRE SECTION ---
+# --- Export Route ---
+@app.route('/export')
+@login_required
+def export_data():
+    if current_user.role != 'admin':
+        flash('You do not have permission to access this page.')
+        return redirect(url_for('login'))
+
+    try:
+        # Use Pandas to read data directly from the SQLAlchemy query
+        df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
+        
+        # Create an in-memory Excel file
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Submissions', index=False)
+        
+        output.seek(0) # Rewind the file to the beginning
+
+        # Send the file to the user for download
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='iedc_submissions.xlsx'
+        )
+    except Exception as e:
+        flash(f"An error occurred while exporting: {e}")
+        return redirect(url_for('admin_dashboard'))
+# --- END OF NEW SECTION ---
+
 
 # --- Custom Command to Set Up the Database ---
 @app.cli.command("init-db")
