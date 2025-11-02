@@ -17,11 +17,11 @@
 
         <form method="POST" enctype="multipart/form-data">
             <div class="mb-3">
-                <label for="image" class="form-label">Event Photo</label>
-                <input class="form-control" type="file" id="image" name="image" required>
+                <label for="images" class="form-label">Event Photos</label>
+                <input class="form-control" type="file" id="images" name="images" multiple required>
             </div>
             <div class="mb-3">
-                <label for="description" class="form-label">Description (Bullet Points)</label>
+                <label for="description" class="form-label">Description (for all images)</label>
                 <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
             </div>
             <button type="submit" class="btn btn-primary">Upload</button>
