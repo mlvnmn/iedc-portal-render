@@ -128,6 +128,50 @@ def approve_submission(submission_id):
         flash('Submission approved and forwarded to main admin.')
     return redirect(url_for('sub_admin_dashboard'))
 
+import io # Add this import at the top of your app.py file
+import pandas as pd # Add this import at the top as well
+from flask import send_file # Add send_file to your main flask import
+
+# ... (rest of your routes) ...
+
+# --- Export Route ---
+
+@app.route('/export')
+@login_required
+def export_data():
+    # 1. Security Check: Only allow the main admin to export
+    if current_user.role != 'admin':
+        flash('You do not have permission to access this page.')
+        return redirect(url_for('login'))
+
+    try:
+        # 2. Query your database for all submissions
+        # We can query the Submission model directly
+        query = Submission.query.all()
+        
+        # 3. Use Pandas to convert the database data to a DataFrame
+        # pd.read_sql needs the raw SQL statement and the connection
+        df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
+        
+        # 4. Create an in-memory Excel file
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Submissions', index=False)
+        
+        output.seek(0) # Go to the beginning of the in-memory file
+
+        # 5. Send the file to the user for download
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='iedc_submissions.xlsx'
+        )
+    except Exception as e:
+        flash(f"An error occurred while exporting: {e}")
+        return redirect(url_for('admin_dashboard'))
+
+# ... (Your init-db command) ...
 # --- Custom Command to Set Up the Database ---
 @app.cli.command("init-db")
 def init_db_command():
