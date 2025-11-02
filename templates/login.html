@@ -23,15 +23,14 @@
             align-items: center;
             min-height: 100vh;
             
-            /* --- THIS IS THE CHANGE --- */
-            /* Replace this URL with the link to your new background image */
-            background-image: url('https://ibb.co/G3NgRVwL');
+            /* --- THIS IS THE CORRECTED LINE --- */
+            /* It now uses a relative path that WhiteNoise can find */
+            background-image: url('/static/assets/background.jpg');
             
             background-size: cover;
             background-position: center;
         }
 
-        /* --- ADDED THIS SECTION FOR THE LOGO --- */
         .logo-container {
             text-align: center;
             margin-bottom: 15px;
@@ -39,10 +38,8 @@
         .logo-container img {
             max-width: 100px;
             height: auto;
-            border-radius: 10px; /* Optional: makes logo corners rounded */
+            border-radius: 10px;
         }
-        /* --- END OF ADDED SECTION --- */
-
 
         .login-box {
             width: 420px;
@@ -125,8 +122,9 @@
     <div class="login-box">
 
         <div class="logo-container">
-            <img src="https://ibb.co/Wp5BwZ7m" alt="College Logo">
+            <img src="/static/assets/logo.png" alt="College Logo">
         </div>
+        
         <form method="POST" action="/login">
             <h1>Login</h1>
             
