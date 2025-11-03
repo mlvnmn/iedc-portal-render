@@ -139,14 +139,17 @@ def export_data():
     except Exception as e:
         flash(f"An error occurred while exporting: {e}"); return redirect(url_for('admin_dashboard'))
 
-# --- Custom Database Command (Safe) ---
+# --- Custom Database Command (Destructive) ---
 @app.cli.command("init-db")
 def init_db_command():
-    """SAFE: Creates tables and default users."""
+    """DESTRUCTIVE: Wipes the entire database schema and recreates it."""
     
-    # The "DROP SCHEMA" line is now GONE.
+    # This command wipes the database to remove the old table structure
+    with app.app_context():
+        db.session.execute(text('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'))
+        db.session.commit()
     
-    db.create_all() 
+    db.create_all() # This will create the new, simpler User table
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
         users = [
@@ -160,4 +163,4 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized.")
+    print("Database initialized and cleared.")
