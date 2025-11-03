@@ -5,8 +5,7 @@ gunicorn
 psycopg2-binary
 Werkzeug
 cloudinary
-pandas 
+pandas
 openpyxl
 whitenoise
 Authlib
-requests
