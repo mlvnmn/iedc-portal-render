@@ -406,4 +406,16 @@ def admin_reject_submission(submission_id):
     db.session.commit()
     flash('Submission rejected by admin.')
     return redirect(url_for('admin_dashboard'))
+
+# --- HTTP fallback to initialize DB when CLI is unavailable ---
+@app.route('/internal/init-db', methods=['POST'])
+def http_init_db():
+    expected = os.environ.get('INIT_DB_TOKEN')
+    token = request.headers.get('X-Init-Token') or request.args.get('token')
+    if not expected:
+        return ('INIT_DB_TOKEN not set', 400)
+    if token != expected:
+        return ('Forbidden', 403)
+    _initialize_database_if_needed()
+    return ('ok', 200)
     
