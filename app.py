@@ -1,3 +1,5 @@
+# [ STEP 1: DESTRUCTIVE app.py - PUSH THIS FIRST ]
+
 import os
 import cloudinary
 import cloudinary.uploader
@@ -94,9 +96,17 @@ def callback():
         user_email = userinfo['email']
         user = User.query.filter_by(google_id=google_user_id).first()
         if not user:
-            user = User(google_id=google_user_id, username=user_email)
-            db.session.add(user)
-            db.session.commit()
+            # If user doesn't exist, check if an account with that email already exists
+            user = User.query.filter_by(username=user_email).first()
+            if user:
+                # Link existing account
+                user.google_id = google_user_id
+                db.session.commit()
+            else:
+                # Create a new user
+                user = User(google_id=google_user_id, username=user_email)
+                db.session.add(user)
+                db.session.commit()
         login_user(user)
         return redirect_to_dashboard(user)
     except Exception as e:
@@ -171,7 +181,7 @@ def export_data():
     try:
         df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyx') as writer:
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Submissions', index=False)
         output.seek(0)
         return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iedc_submissions.xlsx')
@@ -181,11 +191,13 @@ def export_data():
 # --- Custom Database Command ---
 @app.cli.command("init-db")
 def init_db_command():
-    """SAFE: Creates tables and default users."""
+    """DESTRUCTIVE: Clears all data and re-creates tables."""
     
-    # --- The "db.drop_all()" line is now GONE. ---
+    # --- THIS IS THE "CLEAR DATABASE" LINE ---
+    db.drop_all()
+    # --- END OF LINE ---
     
-    db.create_all() 
+    db.create_all() # This will create the new tables with the google_id column
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
         users = [
@@ -199,4 +211,4 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized.")
+    print("Database initialized and cleared.")
