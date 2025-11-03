@@ -1,4 +1,5 @@
-# [ FULL APP.PY CODE - VERSION 1: "CLEAR DATABASE" ]
+# [ STEP 1: DESTRUCTIVE app.py - PUSH THIS FIRST ]
+
 import os
 import cloudinary
 import cloudinary.uploader
