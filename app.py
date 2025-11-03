@@ -9,21 +9,16 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from whitenoise import WhiteNoise
-from authlib.integrations.flask_client import OAuth # For Google Login
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
 app.wsgi_app = WhiteNoise(app.wsgi_app, root="static/")
 db = SQLAlchemy()
 login_manager = LoginManager()
-oauth = OAuth()
 
 # --- App Configuration ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
-app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
-app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
-app.config['GOOGLE_DISCOVERY_URL'] = "https://accounts.google.com/.well-known/openid-configuration"
 
 # --- Cloudinary Configuration ---
 cloudinary.config(
@@ -35,22 +30,13 @@ cloudinary.config(
 # --- Connect Extensions to the App ---
 db.init_app(app)
 login_manager.init_app(app)
-oauth.init_app(app)
+login_manager.login_view = 'login'
 
-oauth.register(
-    name='google',
-    client_id=app.config['GOOGLE_CLIENT_ID'],
-    client_secret=app.config['GOOGLE_CLIENT_SECRET'],
-    server_metadata_url=app.config['GOOGLE_DISCOVERY_URL'],
-    client_kwargs={'scope': 'openid email profile'}
-)
-
-# --- Database Models ---
+# --- Database Models (Simplified) ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False) 
-    google_id = db.Column(db.String(200), unique=True, nullable=True) # For Google users
-    password_hash = db.Column(db.String(200), nullable=True) # Nullable for Google users
+    password_hash = db.Column(db.String(200), nullable=False) # No longer nullable
     role = db.Column(db.String(20), nullable=False, default='student')
     department = db.Column(db.String(100), default='Not Specified')
 
@@ -70,49 +56,18 @@ class Submission(db.Model):
 @login_manager.user_loader
 def load_user(user_id): return User.query.get(int(user_id))
 
-# --- Login & Auth Routes ---
+# --- Login & Auth Routes (Simplified) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form['username']).first()
-        if user and user.password_hash and user.check_password(request.form['password']):
+        if user and user.check_password(request.form['password']):
             login_user(user)
-            return redirect_to_dashboard(user)
+            if user.role == 'admin': return redirect(url_for('admin_dashboard'))
+            elif user.role == 'sub-admin': return redirect(url_for('sub_admin_dashboard'))
+            else: return redirect(url_for('student_dashboard'))
         flash('Invalid username or password')
     return render_template('login.html')
-
-@app.route('/google-login')
-def google_login():
-    redirect_uri = url_for('callback', _external=True)
-    return oauth.google.authorize_redirect(redirect_uri)
-
-@app.route('/callback')
-def callback():
-    try:
-        token = oauth.google.authorize_access_token()
-        userinfo = oauth.google.get('openid/userinfo').json()
-        google_user_id = userinfo['sub']
-        user_email = userinfo['email']
-        user = User.query.filter_by(google_id=google_user_id).first()
-        if not user:
-            user = User.query.filter_by(username=user_email).first()
-            if user:
-                user.google_id = google_user_id
-                db.session.commit()
-            else:
-                user = User(google_id=google_user_id, username=user_email)
-                db.session.add(user)
-                db.session.commit()
-        login_user(user)
-        return redirect_to_dashboard(user)
-    except Exception as e:
-        flash(f'An error occurred with Google login: {e}', 'error')
-        return redirect(url_for('login'))
-
-def redirect_to_dashboard(user):
-    if user.role == 'admin': return redirect(url_for('admin_dashboard'))
-    elif user.role == 'sub-admin': return redirect(url_for('sub_admin_dashboard'))
-    else: return redirect(url_for('student_dashboard'))
 
 @app.route('/logout')
 @login_required
@@ -171,22 +126,38 @@ def approve_submission(submission_id):
 
 @app.route('/export')
 @login_required
-def export_data(): # <--- THIS IS THE FIRST FIX (removed the underscore)
+def export_data():
     if current_user.role != 'admin':
         flash('You do not have permission to access this page.'); return redirect(url_for('login'))
     try:
         df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer: # <--- THIS IS THE SECOND FIX (changed 'openpyx' to 'openpyxl')
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Submissions', index=False)
         output.seek(0)
         return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iedc_submissions.xlsx')
     except Exception as e:
         flash(f"An error occurred while exporting: {e}"); return redirect(url_for('admin_dashboard'))
 
-# --- Custom Database Command ---
+# --- Custom Database Command (Safe) ---
 @app.cli.command("init-db")
 def init_db_command():
     """SAFE: Creates tables and default users."""
     
-    # --- The "DROP" command is GONE. Your
+    # The "DROP SCHEMA" line is now GONE.
+    
+    db.create_all() 
+    if User.query.filter_by(username='admin').first() is None:
+        print("Creating default users...")
+        users = [
+            User(username='admin', role='admin', department='College'),
+            User(username='teacher_cs', role='sub-admin', department='Computer Science'),
+            User(username='student_cs', role='student', department='Computer Science')
+        ]
+        passwords = ['admin123', 'teacher123', 'student123']
+        for i, user in enumerate(users):
+            user.set_password(passwords[i])
+            db.session.add(user)
+        db.session.commit()
+        print("Default users created.")
+    print("Database initialized.")
