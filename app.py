@@ -290,12 +290,8 @@ def export_data():
         return redirect(url_for('admin_dashboard'))
 
 # --- Custom Command to Set Up the Database ---
-@app.cli.command("init-db")
-def init_db_command():
-    """SAFE: Creates tables and default users."""
-    
-    # --- The "db.drop_all()" line is now gone. ---
-    
+def _initialize_database_if_needed():
+    """Create tables and default users if missing. Safe/idempotent."""
     db.create_all()
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
@@ -311,6 +307,19 @@ def init_db_command():
         db.session.commit()
         print("Default users created.")
     print("Database initialized.")
+
+@app.cli.command("init-db")
+def init_db_command():
+    """SAFE: Creates tables and default users."""
+    _initialize_database_if_needed()
+
+# Optional: bootstrap DB automatically in environments where CLI isn't available
+if os.environ.get('AUTO_INIT_DB') == '1':
+    with app.app_context():
+        try:
+            _initialize_database_if_needed()
+        except Exception as e:
+            print(f"AUTO_INIT_DB failed: {e}")
 
 # --- Safe Migration Command to add review/audit structures ---
 @app.cli.command("migrate-review")
