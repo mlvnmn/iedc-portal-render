@@ -19,8 +19,9 @@ login_manager = LoginManager()
 oauth = OAuth()
 
 # --- App Configuration ---
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_urlsafe(32)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL') or f"sqlite:///iedc.db"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # --- Cloudinary Configuration ---
 cloudinary.config(
@@ -157,6 +158,8 @@ def student_dashboard():
         event_name = request.form.get('event')
         description = request.form['description']
         files = request.files.getlist('images')
+        # Basic validation to ensure only images are uploaded
+        allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
         if not current_user.department:
             flash('Your account is missing a department. Please contact an admin to set your department before uploading.')
             return redirect(request.url)
@@ -166,6 +169,10 @@ def student_dashboard():
         num_uploaded = 0
         for file in files:
             if file:
+                filename_lower = file.filename.lower()
+                if not any(filename_lower.endswith(ext) for ext in allowed_extensions) and not (file.mimetype or "").startswith('image/'):
+                    flash(f"Skipped non-image file: {file.filename}")
+                    continue
                 upload_result = cloudinary.uploader.upload(file)
                 image_url = upload_result['secure_url']
                 new_submission = Submission(
@@ -206,16 +213,7 @@ def admin_dashboard():
         grouped.setdefault(dept, {}).setdefault(evt, []).append(s)
     return render_template('admin.html', grouped=grouped)
 
-@app.route('/approve/<int:submission_id>')
-@login_required
-def approve_submission(submission_id):
-    if current_user.role != 'sub-admin': return redirect(url_for('login'))
-    submission = db.get_or_404(Submission, submission_id)
-    if submission.department == current_user.department:
-        submission.status = STATUS_APPROVED_BY_SUB
-        db.session.commit()
-        flash('Submission approved and forwarded to main admin.')
-    return redirect(url_for('sub_admin_dashboard'))
+# Removed unsafe GET route that performed state change. Use POST endpoints below instead.
 
 # --- Sub-admin Review Actions (POST) ---
 @app.route('/sub/approve/<int:submission_id>', methods=['POST'])
