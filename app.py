@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from whitenoise import WhiteNoise
 from authlib.integrations.flask_client import OAuth
 import secrets
+import click
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
@@ -313,6 +314,22 @@ def init_db_command():
     """SAFE: Creates tables and default users."""
     _initialize_database_if_needed()
 
+# Alias with underscore (Click auto-exposes both `init_db` and `init-db`)
+@app.cli.command("init_db")
+def init_db_command_underscore():
+    """Alias for init-db."""
+    _initialize_database_if_needed()
+
+# Grouped command: `flask db init`
+@app.cli.group("db")
+def db_group():
+    """Database management commands."""
+    pass
+
+@db_group.command("init")
+def db_init_group():
+    _initialize_database_if_needed()
+
 # Optional: bootstrap DB automatically in environments where CLI isn't available
 if os.environ.get('AUTO_INIT_DB') == '1':
     with app.app_context():
@@ -389,3 +406,4 @@ def admin_reject_submission(submission_id):
     db.session.commit()
     flash('Submission rejected by admin.')
     return redirect(url_for('admin_dashboard'))
+    
