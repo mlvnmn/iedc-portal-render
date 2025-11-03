@@ -10,3 +10,5 @@ openpyxl
 whitenoise
 Authlib
 
+
+requests
