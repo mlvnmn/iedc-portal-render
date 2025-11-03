@@ -8,5 +8,3 @@ cloudinary
 pandas
 openpyxl
 whitenoise
-Authlib
-requests
