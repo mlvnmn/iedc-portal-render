@@ -1,14 +1,10 @@
-# [ STEP 1: DESTRUCTIVE app.py - PUSH THIS FIRST ]
-
 import os
 import cloudinary
 import cloudinary.uploader
 import io
 import pandas as pd
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, session
-# --- ADD THIS IMPORT ---
 from sqlalchemy import text
-# --- END OF ADDITION ---
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -175,7 +171,7 @@ def approve_submission(submission_id):
 
 @app.route('/export')
 @login_required
-def export_data():
+def export_.data():
     if current_user.role != 'admin':
         flash('You do not have permission to access this page.'); return redirect(url_for('login'))
     try:
@@ -191,13 +187,9 @@ def export_data():
 # --- Custom Database Command ---
 @app.cli.command("init-db")
 def init_db_command():
-    """DESTRUCTIVE: Wipes the entire database schema and recreates it."""
+    """SAFE: Creates tables and default users."""
     
-    # --- THIS IS THE NEW "WIPE" COMMAND ---
-    with app.app_context():
-        db.session.execute(text('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'))
-        db.session.commit()
-    # --- END OF NEW COMMAND ---
+    # --- The "DROP SCHEMA" command is now GONE. ---
     
     db.create_all() # This will create the new tables with the google_id column
     if User.query.filter_by(username='admin').first() is None:
@@ -213,4 +205,4 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized and cleared.")
+    print("Database initialized.")
