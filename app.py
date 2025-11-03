@@ -1,5 +1,3 @@
-# [ STEP 1: DESTRUCTIVE app.py - PUSH THIS FIRST ]
-
 import os
 import cloudinary
 import cloudinary.uploader
@@ -173,7 +171,7 @@ def export_data():
     try:
         df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output, engine='openpyx') as writer:
             df.to_excel(writer, sheet_name='Submissions', index=False)
         output.seek(0)
         return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iedc_submissions.xlsx')
@@ -183,13 +181,11 @@ def export_data():
 # --- Custom Database Command ---
 @app.cli.command("init-db")
 def init_db_command():
-    """DESTRUCTIVE: Clears all data and re-creates tables."""
+    """SAFE: Creates tables and default users."""
     
-    # --- THIS IS THE "CLEAR DATABASE" LINE ---
-    db.drop_all()
-    # --- END OF LINE ---
+    # --- The "db.drop_all()" line is now GONE. ---
     
-    db.create_all() # This will create the new tables with the google_id column
+    db.create_all() 
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
         users = [
@@ -203,4 +199,4 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized and cleared.")
+    print("Database initialized.")
