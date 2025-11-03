@@ -6,6 +6,9 @@ import cloudinary.uploader
 import io
 import pandas as pd
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, session
+# --- ADD THIS IMPORT ---
+from sqlalchemy import text
+# --- END OF ADDITION ---
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -96,14 +99,11 @@ def callback():
         user_email = userinfo['email']
         user = User.query.filter_by(google_id=google_user_id).first()
         if not user:
-            # If user doesn't exist, check if an account with that email already exists
             user = User.query.filter_by(username=user_email).first()
             if user:
-                # Link existing account
                 user.google_id = google_user_id
                 db.session.commit()
             else:
-                # Create a new user
                 user = User(google_id=google_user_id, username=user_email)
                 db.session.add(user)
                 db.session.commit()
@@ -191,11 +191,13 @@ def export_data():
 # --- Custom Database Command ---
 @app.cli.command("init-db")
 def init_db_command():
-    """DESTRUCTIVE: Clears all data and re-creates tables."""
+    """DESTRUCTIVE: Wipes the entire database schema and recreates it."""
     
-    # --- THIS IS THE "CLEAR DATABASE" LINE ---
-    db.drop_all()
-    # --- END OF LINE ---
+    # --- THIS IS THE NEW "WIPE" COMMAND ---
+    with app.app_context():
+        db.session.execute(text('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'))
+        db.session.commit()
+    # --- END OF NEW COMMAND ---
     
     db.create_all() # This will create the new tables with the google_id column
     if User.query.filter_by(username='admin').first() is None:
