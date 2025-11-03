@@ -1,3 +1,4 @@
+# [ FULL APP.PY CODE - VERSION 1: "CLEAR DATABASE" ]
 import os
 import cloudinary
 import cloudinary.uploader
@@ -8,19 +9,18 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from whitenoise import WhiteNoise
-from authlib.integrations.flask_client import OAuth # --- NEW IMPORT ---
+from authlib.integrations.flask_client import OAuth # For Google Login
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
 app.wsgi_app = WhiteNoise(app.wsgi_app, root="static/")
 db = SQLAlchemy()
 login_manager = LoginManager()
-oauth = OAuth() # --- NEW ---
+oauth = OAuth()
 
 # --- App Configuration ---
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
-# --- NEW: Google OAuth Config ---
 app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
 app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
 app.config['GOOGLE_DISCOVERY_URL'] = "https://accounts.google.com/.well-known/openid-configuration"
@@ -35,31 +35,27 @@ cloudinary.config(
 # --- Connect Extensions to the App ---
 db.init_app(app)
 login_manager.init_app(app)
-oauth.init_app(app) # --- NEW ---
+oauth.init_app(app)
 
-# --- NEW: Configure Google OAuth with Authlib ---
 oauth.register(
     name='google',
     client_id=app.config['GOOGLE_CLIENT_ID'],
     client_secret=app.config['GOOGLE_CLIENT_SECRET'],
     server_metadata_url=app.config['GOOGLE_DISCOVERY_URL'],
-    client_kwargs={
-        'scope': 'openid email profile' # 'openid' is required, 'email' and 'profile' get user info
-    }
+    client_kwargs={'scope': 'openid email profile'}
 )
 
 # --- Database Models ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(100), unique=True, nullable=False) # We'll use the email for Google users
-    google_id = db.Column(db.String(200), unique=True, nullable=True) # --- NEW --- To store Google's unique ID
-    password_hash = db.Column(db.String(200), nullable=True) # --- CHANGED --- Nullable, as Google users won't have one
-    role = db.Column(db.String(20), nullable=False)
-    department = db.Column(db.String(100))
+    username = db.Column(db.String(100), unique=True, nullable=False) 
+    google_id = db.Column(db.String(200), unique=True, nullable=True) # For Google users
+    password_hash = db.Column(db.String(200), nullable=True) # Nullable for Google users
+    role = db.Column(db.String(20), nullable=False, default='student')
+    department = db.Column(db.String(100), default='Not Specified')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
-
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
@@ -72,10 +68,9 @@ class Submission(db.Model):
     status = db.Column(db.String(20), default='pending')
 
 @login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+def load_user(user_id): return User.query.get(int(user_id))
 
-# --- Main Routes (Web Pages) ---
+# --- Login & Auth Routes ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -86,54 +81,33 @@ def login():
         flash('Invalid username or password')
     return render_template('login.html')
 
-# --- NEW: Google Login Route ---
 @app.route('/google-login')
 def google_login():
-    # Get the redirect URL for our /callback route
     redirect_uri = url_for('callback', _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
-# --- NEW: Callback Route ---
 @app.route('/callback')
 def callback():
     try:
-        # Get the user's info from Google
         token = oauth.google.authorize_access_token()
         userinfo = oauth.google.get('openid/userinfo').json()
-
         google_user_id = userinfo['sub']
         user_email = userinfo['email']
-
-        # Check if this Google user is already in our database
         user = User.query.filter_by(google_id=google_user_id).first()
-
         if not user:
-            # If not, create a new user
-            user = User(
-                google_id=google_user_id,
-                username=user_email, # Use email as the username
-                role='student',      # Assign a default role
-                department='Not Specified' # Assign a default department
-            )
+            user = User(google_id=google_user_id, username=user_email)
             db.session.add(user)
             db.session.commit()
-
-        # Log the user in
         login_user(user)
         return redirect_to_dashboard(user)
-
     except Exception as e:
         flash(f'An error occurred with Google login: {e}', 'error')
         return redirect(url_for('login'))
 
-# --- NEW: Helper function to redirect based on role ---
 def redirect_to_dashboard(user):
-    if user.role == 'admin':
-        return redirect(url_for('admin_dashboard'))
-    elif user.role == 'sub-admin':
-        return redirect(url_for('sub_admin_dashboard'))
-    else:
-        return redirect(url_for('student_dashboard'))
+    if user.role == 'admin': return redirect(url_for('admin_dashboard'))
+    elif user.role == 'sub-admin': return redirect(url_for('sub_admin_dashboard'))
+    else: return redirect(url_for('student_dashboard'))
 
 @app.route('/logout')
 @login_required
@@ -141,44 +115,28 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- (All your other routes: student_dashboard, sub_admin_dashboard, etc. stay the same) ---
-# ... (all other routes below) ...
-
-
+# --- Dashboard Routes ---
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/student_dashboard', methods=['GET', 'POST'])
 @login_required
 def student_dashboard():
     if current_user.role != 'student': return redirect(url_for('login'))
-    
     if request.method == 'POST':
         description = request.form['description']
         files = request.files.getlist('images')
-
         if not files or files[0].filename == '':
-            flash('No files selected')
-            return redirect(request.url)
-
+            flash('No files selected'); return redirect(request.url)
         num_uploaded = 0
         for file in files:
             if file:
                 upload_result = cloudinary.uploader.upload(file)
-                image_url = upload_result['secure_url']
-                new_submission = Submission(
-                    image_filename=image_url,
-                    description=description,
-                    user_id=current_user.id,
-                    department=current_user.department
-                )
+                new_submission = Submission(image_filename=upload_result['secure_url'], description=description, user_id=current_user.id, department=current_user.department)
                 db.session.add(new_submission)
                 num_uploaded += 1
-        
         db.session.commit()
         flash(f'Successfully uploaded {num_uploaded} images!')
         return redirect(url_for('student_dashboard'))
-
     return render_template('student.html')
-
 
 @app.route('/sub_admin_dashboard')
 @login_required
@@ -187,7 +145,6 @@ def sub_admin_dashboard():
     submissions = Submission.query.filter_by(department=current_user.department, status='pending').all()
     return render_template('sub_admin.html', submissions=submissions)
 
-
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
@@ -195,6 +152,7 @@ def admin_dashboard():
     submissions = Submission.query.filter_by(status='approved_by_sub').all()
     return render_template('admin.html', submissions=submissions)
 
+# --- Action Routes ---
 @app.route('/approve/<int:submission_id>')
 @login_required
 def approve_submission(submission_id):
@@ -210,8 +168,7 @@ def approve_submission(submission_id):
 @login_required
 def export_data():
     if current_user.role != 'admin':
-        flash('You do not have permission to access this page.')
-        return redirect(url_for('login'))
+        flash('You do not have permission to access this page.'); return redirect(url_for('login'))
     try:
         df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
         output = io.BytesIO()
@@ -220,14 +177,18 @@ def export_data():
         output.seek(0)
         return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iedc_submissions.xlsx')
     except Exception as e:
-        flash(f"An error occurred while exporting: {e}")
-        return redirect(url_for('admin_dashboard'))
+        flash(f"An error occurred while exporting: {e}"); return redirect(url_for('admin_dashboard'))
 
-# --- Custom Command to Set Up the Database ---
+# --- Custom Database Command ---
 @app.cli.command("init-db")
 def init_db_command():
-    """SAFE: Creates tables and default users."""
-    db.create_all() # This will now add the new 'google_id' column
+    """DESTRUCTIVE: Clears all data and re-creates tables."""
+    
+    # --- THIS IS THE "CLEAR DATABASE" LINE ---
+    db.drop_all()
+    # --- END OF LINE ---
+    
+    db.create_all() # This will create the new tables with the google_id column
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
         users = [
@@ -241,4 +202,4 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized.")
+    print("Database initialized and cleared.")
