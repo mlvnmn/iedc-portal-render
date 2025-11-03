@@ -11,6 +11,8 @@ from whitenoise import WhiteNoise
 from authlib.integrations.flask_client import OAuth
 import secrets
 import click
+import requests
+import zipfile
 
 # --- App and Extension Initialization ---
 app = Flask(__name__)
@@ -406,6 +408,52 @@ def admin_reject_submission(submission_id):
     db.session.commit()
     flash('Submission rejected by admin.')
     return redirect(url_for('admin_dashboard'))
+
+# --- Admin Downloads ---
+@app.route('/admin/download/<int:submission_id>')
+@login_required
+def admin_download_single(submission_id):
+    if current_user.role != 'admin': return redirect(url_for('login'))
+    submission = db.get_or_404(Submission, submission_id)
+    # Fetch the remote image and stream back as attachment
+    try:
+        r = requests.get(submission.image_filename, stream=True, timeout=30)
+        r.raise_for_status()
+        # Derive a safe filename from the URL
+        filename = submission.image_filename.split('/')[-1]
+        return send_file(
+            io.BytesIO(r.content),
+            as_attachment=True,
+            download_name=filename,
+            mimetype=r.headers.get('Content-Type', 'application/octet-stream')
+        )
+    except Exception as e:
+        flash(f'Failed to download image: {e}')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/download-zip', methods=['POST'])
+@login_required
+def admin_download_zip():
+    if current_user.role != 'admin': return redirect(url_for('login'))
+    ids = request.form.getlist('ids')
+    if not ids:
+        flash('No images selected for download.')
+        return redirect(url_for('admin_dashboard'))
+    # Fetch images and pack into a zip in memory
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for sid in ids:
+            try:
+                submission = db.get_or_404(Submission, int(sid))
+                r = requests.get(submission.image_filename, stream=True, timeout=30)
+                r.raise_for_status()
+                fname = submission.image_filename.split('/')[-1]
+                zf.writestr(fname, r.content)
+            except Exception:
+                # Skip problematic files; continue with others
+                continue
+    buffer.seek(0)
+    return send_file(buffer, as_attachment=True, download_name='selected_images.zip', mimetype='application/zip')
 
 # --- HTTP fallback to initialize DB when CLI is unavailable ---
 @app.route('/internal/init-db', methods=['POST'])

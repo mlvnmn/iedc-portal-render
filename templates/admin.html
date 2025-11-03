@@ -6,17 +6,32 @@
 {% if not grouped %}
 <p>No approved submissions yet.</p>
 {% else %}
+    <form method="post" action="{{ url_for('admin_download_zip') }}">
     {% for dept, events in grouped.items() %}
     <h5 class="mt-4">Department: {{ dept }}</h5>
     {% for evt, items in events.items() %}
-        <h6 class="mt-3">Event: {{ evt }}</h6>
-        <div class="row">
+        <div class="d-flex align-items-center justify-content-between mt-3">
+            <h6 class="mb-0">Event: {{ evt }}</h6>
+            <div class="d-flex align-items-center gap-2">
+                <input type="checkbox" id="select-all-{{ dept|replace(' ', '_') }}-{{ evt|replace(' ', '_') }}" onclick="toggleEventGroup(this)">
+                <label class="text-white-50" for="select-all-{{ dept|replace(' ', '_') }}-{{ evt|replace(' ', '_') }}">Select all in this event</label>
+            </div>
+        </div>
+        <div class="row mt-2">
             {% for submission in items %}
             <div class="col-md-4">
                 <div class="card mb-3">
                     <img src="{{ submission.image_filename }}" class="card-img-top" alt="Event Image">
                     <div class="card-body">
-                        <p class="card-text">{{ submission.description }}</p>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input select-checkbox" type="checkbox" name="ids" value="{{ submission.id }}">
+                            <label class="form-check-label">Select</label>
+                        </div>
+                        <p class="card-text" id="desc-{{ submission.id }}">{{ submission.description }}</p>
+                        <div class="d-flex gap-2">
+                            <a class="btn btn-primary btn-sm" href="{{ url_for('admin_download_single', submission_id=submission.id) }}">Download</a>
+                            <button type="button" class="btn btn-outline-light btn-sm" onclick="copyText('desc-{{ submission.id }}')">Copy Description</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -24,5 +39,34 @@
         </div>
     {% endfor %}
     {% endfor %}
+    <div class="mt-3">
+        <button type="submit" class="btn btn-success">Download Selected as ZIP</button>
+    </div>
+    </form>
 {% endif %}
+
+<script>
+function toggleEventGroup(cb) {
+    // scope: nearest event row following this header
+    const container = cb.closest('div').parentElement.nextElementSibling;
+    if (!container) return;
+    const checks = container.querySelectorAll('input.select-checkbox');
+    checks.forEach(ch => { ch.checked = cb.checked; });
+}
+function copyText(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const text = el.innerText || el.textContent || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch(e) {}
+        document.body.removeChild(ta);
+    }
+}
+</script>
 {% endblock %}

@@ -9,6 +9,4 @@ pandas
 openpyxl
 whitenoise
 Authlib
-
-
 requests
