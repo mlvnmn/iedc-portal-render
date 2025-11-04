@@ -11,7 +11,7 @@
             <div class="card-body">
                 <h6 class="card-subtitle mb-2 text-muted">Department: {{ submission.department }}</h6>
                 <p class="card-text" id="description-{{ submission.id }}">{{ submission.description }}</p>
-                <a href="{{ submission.image_filename }}" download class="btn btn-primary">Download Image</a>
+                <a href="{{ url_for('download_image', url=submission.image_filename) }}" class="btn btn-primary">Download Image</a>
                 <button class="btn btn-secondary" onclick="copyToClipboard('description-{{ submission.id }}')">Copy Description</button>
             </div>
         </div>

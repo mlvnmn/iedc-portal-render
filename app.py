@@ -3,6 +3,7 @@ import cloudinary
 import cloudinary.uploader
 import io
 import pandas as pd
+import requests
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, session
 from sqlalchemy import text
 from flask_sqlalchemy import SQLAlchemy
@@ -113,6 +114,26 @@ def admin_dashboard():
     return render_template('admin.html', submissions=submissions)
 
 # --- Action Routes ---
+@app.route('/download_image')
+@login_required
+def download_image():
+    if current_user.role != 'admin':
+        flash('You do not have permission to access this page.'); return redirect(url_for('login'))
+    image_url = request.args.get('url')
+    if not image_url:
+        flash('No image URL provided.'); return redirect(url_for('admin_dashboard'))
+    try:
+        response = requests.get(image_url, stream=True)
+        response.raise_for_status()
+        return send_file(
+            io.BytesIO(response.content),
+            mimetype=response.headers['Content-Type'],
+            as_attachment=True,
+            download_name='downloaded_image.jpg'
+        )
+    except requests.exceptions.RequestException as e:
+        flash(f"An error occurred while downloading the image: {e}"); return redirect(url_for('admin_dashboard'))
+
 @app.route('/approve/<int:submission_id>')
 @login_required
 def approve_submission(submission_id):
