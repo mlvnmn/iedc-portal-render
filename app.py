@@ -124,21 +124,6 @@ def approve_submission(submission_id):
         flash('Submission approved and forwarded to main admin.')
     return redirect(url_for('sub_admin_dashboard'))
 
-@app.route('/export')
-@login_required
-def export_data():
-    if current_user.role != 'admin':
-        flash('You do not have permission to access this page.'); return redirect(url_for('login'))
-    try:
-        df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Submissions', index=False)
-        output.seek(0)
-        return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iedc_submissions.xlsx')
-    except Exception as e:
-        flash(f"An error occurred while exporting: {e}"); return redirect(url_for('admin_dashboard'))
-
 # --- Custom Database Command (Safe) ---
 @app.cli.command("init-db")
 def init_db_command():
