@@ -3,6 +3,7 @@ import cloudinary
 import cloudinary.uploader
 import io
 import pandas as pd
+import requests
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, session
 from sqlalchemy import text
 from flask_sqlalchemy import SQLAlchemy
@@ -138,6 +139,34 @@ def export_data():
         return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iqac_submissions.xlsx')
     except Exception as e:
         flash(f"An error occurred while exporting: {e}"); return redirect(url_for('admin_dashboard'))
+
+@app.route('/download/<int:submission_id>')
+@login_required
+def download_image(submission_id):
+    if current_user.role not in ['admin', 'sub-admin']:
+        flash('You do not have permission to access this page.'); return redirect(url_for('login'))
+    submission = db.get_or_404(Submission, submission_id)
+    image_url = submission.image_filename
+    
+    try:
+        response = requests.get(image_url, stream=True)
+        response.raise_for_status()  # Raise an exception for bad status codes
+
+        # Get the filename from the URL
+        filename = image_url.split('/')[-1]
+
+        # Create a BytesIO object to hold the image data
+        img_io = io.BytesIO(response.content)
+
+        return send_file(
+            img_io,
+            mimetype=response.headers.get('Content-Type', 'image/jpeg'),
+            as_attachment=True,
+            download_name=filename
+        )
+    except requests.exceptions.RequestException as e:
+        flash(f"Error downloading image: {e}")
+        return redirect(url_for('admin_dashboard'))
 
 # --- Custom Database Command (Safe) ---
 @app.cli.command("init-db")
