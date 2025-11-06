@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <h3>Main Admin Dashboard</h3>
+<a href="{{ url_for('add_user') }}" class="btn btn-primary mb-3">Add User</a>
+<a href="{{ url_for('download_approved_submissions') }}" class="btn btn-primary mb-3">Download Approved Submissions</a>
 <p>Here are all the approved submissions from all departments.</p>
 
 <div class="row">
@@ -9,7 +11,9 @@
         <div class="card">
             <img src="{{ submission.image_filename }}" class="card-img-top" alt="Event Image">
             <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Submitted by: {{ submission.user.username }}</h6>
                 <h6 class="card-subtitle mb-2 text-muted">Department: {{ submission.department }}</h6>
+                <p class="card-text">Status: {{ submission.status }}</p>
                 <p class="card-text" id="description-{{ submission.id }}">{{ submission.description }}</p>
                 <a href="{{ url_for('download_image', url=submission.image_filename) }}" class="btn btn-primary">Download Image</a>
                 <button class="btn btn-secondary" onclick="copyToClipboard('description-{{ submission.id }}')">Copy Description</button>
