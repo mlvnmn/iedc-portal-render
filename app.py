@@ -3,7 +3,6 @@ import cloudinary
 import cloudinary.uploader
 import io
 import pandas as pd
-import requests
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, session
 from sqlalchemy import text
 from flask_sqlalchemy import SQLAlchemy
@@ -37,7 +36,7 @@ login_manager.login_view = 'login'
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False) 
-    password_hash = db.Column(db.String(200), nullable=False) # No longer nullable
+    password_hash = db.Column(db.String(200), nullable=False) 
     role = db.Column(db.String(20), nullable=False, default='student')
     department = db.Column(db.String(100), default='Not Specified')
 
@@ -114,26 +113,6 @@ def admin_dashboard():
     return render_template('admin.html', submissions=submissions)
 
 # --- Action Routes ---
-@app.route('/download_image')
-@login_required
-def download_image():
-    if current_user.role != 'admin':
-        flash('You do not have permission to access this page.'); return redirect(url_for('login'))
-    image_url = request.args.get('url')
-    if not image_url:
-        flash('No image URL provided.'); return redirect(url_for('admin_dashboard'))
-    try:
-        response = requests.get(image_url, stream=True)
-        response.raise_for_status()
-        return send_file(
-            io.BytesIO(response.content),
-            mimetype=response.headers['Content-Type'],
-            as_attachment=True,
-            download_name='downloaded_image.jpg'
-        )
-    except requests.exceptions.RequestException as e:
-        flash(f"An error occurred while downloading the image: {e}"); return redirect(url_for('admin_dashboard'))
-
 @app.route('/approve/<int:submission_id>')
 @login_required
 def approve_submission(submission_id):
@@ -145,14 +124,32 @@ def approve_submission(submission_id):
         flash('Submission approved and forwarded to main admin.')
     return redirect(url_for('sub_admin_dashboard'))
 
-# --- Custom Database Command (Safe) ---
+@app.route('/export')
+@login_required
+def export_data():
+    if current_user.role != 'admin':
+        flash('You do not have permission to access this page.'); return redirect(url_for('login'))
+    try:
+        df = pd.read_sql(db.session.query(Submission).statement, db.session.bind)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Submissions', index=False)
+        output.seek(0)
+        return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name='iqac_submissions.xlsx')
+    except Exception as e:
+        flash(f"An error occurred while exporting: {e}"); return redirect(url_for('admin_dashboard'))
+
+# --- Custom Database Command (Destructive)  ---
 @app.cli.command("init-db")
 def init_db_command():
-    """SAFE: Creates tables and default users."""
+    """DESTRUCTIVE: Wipes the entire database schema and recreates it."""
     
-    # The "DROP SCHEMA" line is now GONE.
+    # This command wipes the database
+    with app.app_context():
+        db.session.execute(text('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'))
+        db.session.commit()
     
-    db.create_all() 
+    db.create_all() # This will create the new, simpler User table
     if User.query.filter_by(username='admin').first() is None:
         print("Creating default users...")
         users = [
@@ -166,4 +163,5 @@ def init_db_command():
             db.session.add(user)
         db.session.commit()
         print("Default users created.")
-    print("Database initialized.")
+    print("Database initialized and cleared.")
+#all done
