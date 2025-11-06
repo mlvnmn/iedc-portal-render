@@ -121,6 +121,13 @@
         <form method="POST" action="/login">
             <h1>Login</h1>
             
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-message">
+                    {{ messages[0] }}
+                </div>
+            {% endif %}
+            {% endwith %}
 
             <div class="input-box">
                 <input type="text" name="username" placeholder="Username" required>
