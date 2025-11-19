@@ -108,8 +108,18 @@ def sub_admin_dashboard():
 @login_required
 def admin_dashboard():
     if current_user.role != 'admin': return redirect(url_for('login'))
-    submissions = Submission.query.filter_by(status='approved_by_sub').all()
-    return render_template('admin.html', submissions=submissions)
+    
+    # Query approved submissions
+    approved_submissions = Submission.query.filter_by(status='approved_by_sub').all()
+    
+    # Group submissions by department
+    submissions_by_department = {}
+    for submission in approved_submissions:
+        if submission.department not in submissions_by_department:
+            submissions_by_department[submission.department] = []
+        submissions_by_department[submission.department].append(submission)
+        
+    return render_template('admin.html', submissions_by_department=submissions_by_department)
 
 @app.route('/approve/<int:submission_id>')
 @login_required

@@ -6,22 +6,27 @@
 <a href="{{ url_for('export_data') }}" class="btn btn-primary mb-3">Export All Data to Excel</a>
 
 <div class="row">
-    {% for submission in submissions %}
-    <div class="col-md-4">
-        <div class="card">
-            <img src="{{ submission.image_filename }}" class="card-img-top" alt="Event Image">
-            <div class="card-body">
-                <h6 class="card-subtitle mb-2 text-muted">Department: {{ submission.department }}</h6>
-                <p class="card-text" id="description-{{ submission.id }}">{{ submission.description }}</p>
-                
-                <a href="{{ submission.image_filename }}" class="btn btn-primary" download target="_blank">Download Image</a>
-                
-                <button class="btn btn-secondary" onclick="copyToClipboard('description-{{ submission.id }}')">Copy Description</button>
+    {% for department, submissions in submissions_by_department.items() %}
+        <div class="col-12 mt-4">
+            <h4 class="department-heading">{{ department }} Approved Events</h4>
+        </div>
+        {% for submission in submissions %}
+        <div class="col-md-4">
+            <div class="card">
+                <img src="{{ submission.image_filename }}" class="card-img-top" alt="Event Image">
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-2 text-muted">Department: {{ submission.department }}</h6>
+                    <p class="card-text" id="description-{{ submission.id }}">{{ submission.description }}</p>
+                    
+                    <a href="{{ submission.image_filename }}" class="btn btn-primary" download target="_blank">Download Image</a>
+                    
+                    <button class="btn btn-secondary" onclick="copyToClipboard('description-{{ submission.id }}')">Copy Description</button>
+                </div>
             </div>
         </div>
-    </div>
+        {% endfor %}
     {% else %}
-    <div class="col"><p>No approved submissions yet.</p></div>
+        <div class="col"><p>No approved submissions yet.</p></div>
     {% endfor %}
 </div>
 
