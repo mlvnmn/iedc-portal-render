@@ -122,7 +122,7 @@ def admin_dashboard():
     else:
         # No department selected, show the "folders"
         departments = db.session.query(Submission.department).filter_by(status='approved_by_sub').distinct().all()
-        # departments is a list of tuples, e.g., [('Computer Science',), ('Mechanical',)]
+        # departments is a list of tuples, e.g., [('Computer Science',), ('Biotechnology',)]
         # We convert it to a simple list of strings
         department_names = [d[0] for d in departments]
         return render_template('admin.html', departments=department_names)
@@ -163,8 +163,8 @@ def init_db_command():
         {'username': 'admin', 'role': 'admin', 'department': 'College', 'password': 'admin123'},
         {'username': 'teacher_cs', 'role': 'sub-admin', 'department': 'Computer Science', 'password': '123'},
         {'username': 'student_cs', 'role': 'student', 'department': 'Computer Science', 'password': '123'},
-        {'username': 'teacher_mech', 'role': 'sub-admin', 'department': 'Mechanical', 'password': '123'},
-        {'username': 'student_mech', 'role': 'student', 'department': 'Mechanical', 'password': '123'},
+        {'username': 'teacher_bio', 'role': 'sub-admin', 'department': 'Biotechnology', 'password': '123'},
+        {'username': 'student_bio', 'role': 'student', 'department': 'Biotechnology', 'password': '123'},
         {'username': 'teacher_default', 'role': 'sub-admin', 'department': 'Not Specified', 'password': '123'}
     ]
 
