@@ -3,7 +3,6 @@ import cloudinary
 import cloudinary.uploader
 import io
 import pandas as pd
-import requests
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, send_file, session
 from sqlalchemy import text
 from flask_sqlalchemy import SQLAlchemy
@@ -33,11 +32,11 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- Database Models (Simplified) ---
+# --- Database Models ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False) 
-    password_hash = db.Column(db.String(200), nullable=False) 
+    password_hash = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='student')
     department = db.Column(db.String(100), default='Not Specified')
 
@@ -57,7 +56,7 @@ class Submission(db.Model):
 @login_manager.user_loader
 def load_user(user_id): return User.query.get(int(user_id))
 
-# --- Login & Auth Routes (Simplified) ---
+# --- Routes ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -76,7 +75,6 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- Dashboard Routes ---
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/student_dashboard', methods=['GET', 'POST'])
 @login_required
@@ -113,7 +111,6 @@ def admin_dashboard():
     submissions = Submission.query.filter_by(status='approved_by_sub').all()
     return render_template('admin.html', submissions=submissions)
 
-# --- Action Routes ---
 @app.route('/approve/<int:submission_id>')
 @login_required
 def approve_submission(submission_id):
@@ -140,53 +137,39 @@ def export_data():
     except Exception as e:
         flash(f"An error occurred while exporting: {e}"); return redirect(url_for('admin_dashboard'))
 
-@app.route('/download/<int:submission_id>')
-@login_required
-def download_image(submission_id):
-    if current_user.role not in ['admin', 'sub-admin']:
-        flash('You do not have permission to access this page.'); return redirect(url_for('login'))
-    submission = db.get_or_404(Submission, submission_id)
-    image_url = submission.image_filename
-    
-    try:
-        response = requests.get(image_url, stream=True)
-        response.raise_for_status()  # Raise an exception for bad status codes
-
-        # Get the filename from the URL
-        filename = image_url.split('/')[-1]
-
-        # Create a BytesIO object to hold the image data
-        img_io = io.BytesIO(response.content)
-
-        return send_file(
-            img_io,
-            mimetype=response.headers.get('Content-Type', 'image/jpeg'),
-            as_attachment=True,
-            download_name=filename
-        )
-    except requests.exceptions.RequestException as e:
-        flash(f"Error downloading image: {e}")
-        return redirect(url_for('admin_dashboard'))
-
-# --- Custom Database Command (Safe) ---
+# --- Custom Command to Set Up the Database (Demo Version) ---
 @app.cli.command("init-db")
 def init_db_command():
-    """SAFE: Creates tables and default users."""
-    
-    # The destructive "DROP SCHEMA" line is now GONE.
-    
-    db.create_all() 
+    """Creates tables and default users for the Demo."""
+    db.create_all()
+    # Check if data already exists to avoid duplicates
     if User.query.filter_by(username='admin').first() is None:
-        print("Creating default users...")
-        users = [
-            User(username='admin', role='admin', department='College'),
-            User(username='teacher_cs', role='sub-admin', department='Computer Science'),
-            User(username='student_cs', role='student', department='Computer Science')
-        ]
-        passwords = ['admin123', 'teacher123', 'student123']
-        for i, user in enumerate(users):
-            user.set_password(passwords[i])
-            db.session.add(user)
+        print("Creating demo users...")
+        
+        # 1. The Main Admin
+        admin = User(username='admin', role='admin', department='College')
+        admin.set_password('admin123')
+        db.session.add(admin)
+
+        # --- Department 1: Computer Science ---
+        teacher_cs = User(username='teacher_cs', role='sub-admin', department='Computer Science')
+        teacher_cs.set_password('123') 
+        db.session.add(teacher_cs)
+        
+        student_cs = User(username='student_cs', role='student', department='Computer Science')
+        student_cs.set_password('123')
+        db.session.add(student_cs)
+
+        # --- Department 2: Mechanical ---
+        teacher_mech = User(username='teacher_mech', role='sub-admin', department='Mechanical')
+        teacher_mech.set_password('123')
+        db.session.add(teacher_mech)
+
+        student_mech = User(username='student_mech', role='student', department='Mechanical')
+        student_mech.set_password('123')
+        db.session.add(student_mech)
+
         db.session.commit()
-        print("Default users created.")
-    print("Database initialized.")
+        print("Demo users created successfully!")
+    else:
+        print("Users already exist.")
