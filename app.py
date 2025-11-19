@@ -107,18 +107,25 @@ def sub_admin_dashboard():
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
-    if current_user.role != 'admin': return redirect(url_for('login'))
-    
-    # Group submissions by department
-    submissions_by_department = {}
-    query = Submission.query.filter_by(status='approved_by_sub').order_by('department')
-    
-    for submission in query.yield_per(100):  # Process in batches of 100
-        if submission.department not in submissions_by_department:
-            submissions_by_department[submission.department] = []
-        submissions_by_department[submission.department].append(submission)
-        
-    return render_template('admin.html', submissions_by_department=submissions_by_department)
+    if current_user.role != 'admin':
+        return redirect(url_for('login'))
+
+    selected_department = request.args.get('department')
+
+    if selected_department:
+        # A department is selected, show the images for that department
+        submissions = Submission.query.filter_by(
+            status='approved_by_sub',
+            department=selected_department
+        ).all()
+        return render_template('admin.html', submissions=submissions, department=selected_department)
+    else:
+        # No department selected, show the "folders"
+        departments = db.session.query(Submission.department).filter_by(status='approved_by_sub').distinct().all()
+        # departments is a list of tuples, e.g., [('Computer Science',), ('Mechanical',)]
+        # We convert it to a simple list of strings
+        department_names = [d[0] for d in departments]
+        return render_template('admin.html', departments=department_names)
 
 @app.route('/approve/<int:submission_id>')
 @login_required

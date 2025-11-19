@@ -1,34 +1,69 @@
 {% extends "base.html" %}
 {% block content %}
-<h3>Main Admin Dashboard</h3>
-<p>Here are all the approved submissions from all departments.</p>
 
-<a href="{{ url_for('export_data') }}" class="btn btn-primary mb-3">Export All Data to Excel</a>
+{% if department %}
+    {# View 2: Image View for a selected department #}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>{{ department }} Approved Events</h3>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Folders
+        </a>
+    </div>
 
-<div class="row">
-    {% for department, submissions in submissions_by_department.items() %}
-        <div class="col-12 mt-4">
-            <h4 class="department-heading">{{ department }} Approved Events</h4>
-        </div>
+    <div class="row">
         {% for submission in submissions %}
         <div class="col-md-4">
             <div class="card">
                 <img src="{{ submission.image_filename.replace('/upload/', '/upload/w_400,c_limit/') }}" class="card-img-top" alt="Event Image">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Department: {{ submission.department }}</h6>
                     <p class="card-text" id="description-{{ submission.id }}">{{ submission.description }}</p>
-                    
                     <a href="{{ submission.image_filename }}" class="btn btn-primary" download target="_blank">Download Image</a>
-                    
                     <button class="btn btn-secondary" onclick="copyToClipboard('description-{{ submission.id }}')">Copy Description</button>
                 </div>
             </div>
         </div>
+        {% else %}
+        <div class="col"><p>No approved submissions for this department.</p></div>
         {% endfor %}
-    {% else %}
+    </div>
+
+{% else %}
+    {# View 1: Folder View for all departments #}
+    <h3>Main Admin Dashboard</h3>
+    <p>Select a department folder to view approved submissions.</p>
+    <a href="{{ url_for('export_data') }}" class="btn btn-primary mb-3">Export All Data to Excel</a>
+
+    <div class="row">
+        {% for dept in departments %}
+        <div class="col-md-3 text-center">
+            <a href="{{ url_for('admin_dashboard', department=dept) }}" class="folder-link">
+                <div class="folder-icon">
+                    <i class="fas fa-folder fa-4x"></i>
+                    <p class="mt-2">{{ dept }}</p>
+                </div>
+            </a>
+        </div>
+        {% else %}
         <div class="col"><p>No approved submissions yet.</p></div>
-    {% endfor %}
-</div>
+        {% endfor %}
+    </div>
+
+{% endif %}
+
+<style>
+    .folder-link {
+        text-decoration: none;
+        color: #ffffff;
+    }
+    .folder-icon {
+        padding: 20px;
+        border-radius: 10px;
+        transition: background-color 0.3s;
+    }
+    .folder-icon:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+</style>
 
 <script>
 function copyToClipboard(elementId) {
