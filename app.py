@@ -152,34 +152,28 @@ def export_data():
 def init_db_command():
     """Creates tables and default users for the Demo."""
     db.create_all()
-    # Check if data already exists to avoid duplicates
-    if User.query.filter_by(username='admin').first() is None:
-        print("Creating demo users...")
-        
-        # 1. The Main Admin
-        admin = User(username='admin', role='admin', department='College')
-        admin.set_password('admin123')
-        db.session.add(admin)
 
-        # --- Department 1: Computer Science ---
-        teacher_cs = User(username='teacher_cs', role='sub-admin', department='Computer Science')
-        teacher_cs.set_password('123') 
-        db.session.add(teacher_cs)
-        
-        student_cs = User(username='student_cs', role='student', department='Computer Science')
-        student_cs.set_password('123')
-        db.session.add(student_cs)
+    users_to_create = [
+        {'username': 'admin', 'role': 'admin', 'department': 'College', 'password': 'admin123'},
+        {'username': 'teacher_cs', 'role': 'sub-admin', 'department': 'Computer Science', 'password': '123'},
+        {'username': 'student_cs', 'role': 'student', 'department': 'Computer Science', 'password': '123'},
+        {'username': 'teacher_mech', 'role': 'sub-admin', 'department': 'Mechanical', 'password': '123'},
+        {'username': 'student_mech', 'role': 'student', 'department': 'Mechanical', 'password': '123'},
+        {'username': 'teacher_default', 'role': 'sub-admin', 'department': 'Not Specified', 'password': '123'}
+    ]
 
-        # --- Department 2: Mechanical ---
-        teacher_mech = User(username='teacher_mech', role='sub-admin', department='Mechanical')
-        teacher_mech.set_password('123')
-        db.session.add(teacher_mech)
+    for user_data in users_to_create:
+        if User.query.filter_by(username=user_data['username']).first() is None:
+            print(f"Creating user: {user_data['username']}...")
+            user = User(
+                username=user_data['username'],
+                role=user_data['role'],
+                department=user_data['department']
+            )
+            user.set_password(user_data['password'])
+            db.session.add(user)
+        else:
+            print(f"User {user_data['username']} already exists.")
 
-        student_mech = User(username='student_mech', role='student', department='Mechanical')
-        student_mech.set_password('123')
-        db.session.add(student_mech)
-
-        db.session.commit()
-        print("Demo users created successfully!")
-    else:
-        print("Users already exist.")
+    db.session.commit()
+    print("Database initialization complete.")
