@@ -50,8 +50,8 @@ class Submission(db.Model):
     image_filename = db.Column(db.Text, nullable=False) 
     description = db.Column(db.Text, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    department = db.Column(db.String(100), nullable=False)
-    status = db.Column(db.String(20), default='pending')
+    department = db.Column(db.String(100), nullable=False, index=True)
+    status = db.Column(db.String(20), default='pending', index=True)
 
 @login_manager.user_loader
 def load_user(user_id): return User.query.get(int(user_id))
@@ -109,12 +109,11 @@ def sub_admin_dashboard():
 def admin_dashboard():
     if current_user.role != 'admin': return redirect(url_for('login'))
     
-    # Query approved submissions
-    approved_submissions = Submission.query.filter_by(status='approved_by_sub').all()
-    
     # Group submissions by department
     submissions_by_department = {}
-    for submission in approved_submissions:
+    query = Submission.query.filter_by(status='approved_by_sub').order_by('department')
+    
+    for submission in query.yield_per(100):  # Process in batches of 100
         if submission.department not in submissions_by_department:
             submissions_by_department[submission.department] = []
         submissions_by_department[submission.department].append(submission)
